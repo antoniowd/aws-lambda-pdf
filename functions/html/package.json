@@ -1,5 +1,5 @@
 {
-  "name": "pdf",
+  "name": "html",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,11 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@fastify/aws-lambda": "^4.1.0",
-    "fastify": "^4.28.1",
     "puppeteer-core": "^22.13.1"
   },
   "devDependencies": {
-    "@sparticuz/chromium": "^126.0.0"
+    "@sparticuz/chromium": "126"
   }
 }

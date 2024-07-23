@@ -24,12 +24,12 @@ Resources:
       BuildMethod: *nodejsRuntime
       BuildArchitecture: *chromiumArch
 
-  PDF:
+  GeneratePdfFromHtml:
     Type: AWS::Serverless::Function
     Properties:
       Handler: index.handler
-      CodeUri: functions/pdf
-      Description: Generate PDFs using Chromium
+      CodeUri: functions/html
+      Description: Generate PDFs from HTML using Chromium
       Runtime: *nodejsRuntime
       Architectures:
         - *chromiumArch
@@ -38,14 +38,53 @@ Resources:
       # Adjust as necessary
       Timeout: 30
       MemorySize: 1024
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
-            Path: /pdf
-            Method: post
+            Path: /pdf/html
+            Method: GET
+
+  AppBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: "notacerta-pdf-storage"
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfter24Hours
+            Status: Enabled
+            ExpirationInDays: 1
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:PutObjectAcl
+                  - s3:GetObjectAcl
+                Resource:
+                  - !Sub "arn:aws:s3:::notacerta-pdf-storage/*"
+                  - !Sub "arn:aws:s3:::notacerta-pdf-storage"
+
 Outputs:
   ApiUrl:
     Description: "URL for API endpoint"
-    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/pdf"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/"
