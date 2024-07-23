@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Chromium's Serverless Application
+
+Resources:
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: ChromiumPDFApi
+      StageName: prod
+
+  ChromiumLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      Description: Chromium with Node.js integration for AWS Lambda
+      ContentUri: layers/chromium
+      CompatibleRuntimes:
+        - &nodejsRuntime nodejs18.x
+      # Chromium doesn't currently have ARM support; see https://github.com/Sparticuz/chromium#can-i-use-arm-or-graviton-instances
+      CompatibleArchitectures:
+        - &chromiumArch x86_64
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: *nodejsRuntime
+      BuildArchitecture: *chromiumArch
+
+  PDF:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      CodeUri: functions/pdf
+      Description: Generate PDFs using Chromium
+      Runtime: *nodejsRuntime
+      Architectures:
+        - *chromiumArch
+      Layers:
+        - !Ref ChromiumLayer
+      # Adjust as necessary
+      Timeout: 30
+      MemorySize: 1024
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /pdf
+            Method: post
+Outputs:
+  ApiUrl:
+    Description: "URL for API endpoint"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/pdf"
