@@ -44,7 +44,7 @@ Follow the prompts during the guided deployment to set parameters and review the
 ```sh
 aws apigateway get-api-keys --name-query MyApiKey --include-values --region YOUR_REGION
 ```
-The deployment will generate an API Key. You need to get it from the AWS Console or use the following command:
+The deployment will generate an API Key. You need to get it from the AWS Console or use the above command:
 
 ### 4. Test the Endpoint
 After deployment, you will get the API endpoint URL. Use the endpoint to generate a PDF from HTML.
