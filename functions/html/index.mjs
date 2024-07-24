@@ -9,6 +9,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const REGION = process.env.REGION;
+const PDF_CONTENT_TYPE = "application/pdf";
 
 const sendResponse = (statusCode, body) => ({
   statusCode,
@@ -19,13 +20,14 @@ const sendResponse = (statusCode, body) => ({
 });
 
 export const handler = async (event, _) => {
-  const { html, name } = JSON.parse(event.body);
+  const { html, fileName, inlinePdf } = JSON.parse(event.body);
 
   if (!html) {
     return sendResponse(400, { message: "html is required" });
   }
 
-  const key = `${name ?? "sample-document"}.pdf`;
+  const name = fileName ?? "sample-document.pdf";
+  const key = `${fileName}`;
 
   try {
     const browser = await puppeteer.launch({
@@ -48,6 +50,7 @@ export const handler = async (event, _) => {
         Bucket: BUCKET_NAME,
         Key: key,
         Body: buffer,
+        ContentType: PDF_CONTENT_TYPE,
       }),
     );
 
@@ -56,6 +59,8 @@ export const handler = async (event, _) => {
       new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
+        ResponseContentDisposition: inlinePdf ? "inline" : "attachment",
+        ResponseContentType: PDF_CONTENT_TYPE,
       }),
       { expiresIn: 3600 }, // 1 hour
     );
@@ -64,7 +69,7 @@ export const handler = async (event, _) => {
 
     await browser.close();
 
-    return sendResponse(200, { name, url });
+    return sendResponse(200, { fileName: name, url });
   } catch (err) {
     return sendResponse(500, { message: err.message });
   }

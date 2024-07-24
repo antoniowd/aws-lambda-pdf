@@ -52,7 +52,7 @@ After deployment, you will get the API endpoint URL. Use the endpoint to generat
 **Example using `curl`**
 ```sh
 curl -X POST -H "x-api-key: YOUR_API_KEY" \
--d '{"html":"<h1>Hello World!</h1>"}' \
+-d '{"html":"<h1>Hello World!</h1>", "fileName": "myDoc.pdf", "inlinePdf: true }' \
 "https://your-api-id.execute-api.your-region.amazonaws.com/prod/pdf/html"
 ```
 Replace YOUR_API_KEY with your API key and add in the body of the request the HTML content you want to convert to PDF.
