@@ -82,11 +82,18 @@ Resources:
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /pdf/html
-            Method: GET
+            Method: POST
       Environment:
         Variables:
           BUCKET_NAME: !Ref AppBucketName
           REGION: !Ref "AWS::Region"
+
+  GeneratePdfFromHtmlLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: [ GeneratePdfFromHtml ]
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GeneratePdfFromHtml}
+      RetentionInDays: 7
 
   AppBucket:
     Type: AWS::S3::Bucket
@@ -108,6 +115,8 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: S3AccessPolicy
           PolicyDocument:

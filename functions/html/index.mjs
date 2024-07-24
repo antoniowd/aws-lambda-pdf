@@ -5,7 +5,11 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const REGION = process.env.REGION;
 
-export const handler = async (event, context) => {
+export const handler = async (event, _) => {
+  const { html, name } = JSON.parse(event.body);
+
+  const key = `${name ?? "sample-document"}.pdf`;
+
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
@@ -15,14 +19,14 @@ export const handler = async (event, context) => {
 
   const page = await browser.newPage();
 
-  await page.goto("https://www.example.com", { waitUntil: "networkidle0" });
+  await page.setContent(html, { waitUntil: "networkidle0" });
 
   const buffer = await page.pdf({ format: "A4" });
 
   const client = new S3Client({ region: REGION });
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
-    Key: "test.pdf",
+    Key: key,
     Body: buffer,
   });
 
@@ -38,6 +42,7 @@ export const handler = async (event, context) => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
+      name: key,
       url: "https://www.example.com",
     }),
   };

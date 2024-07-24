@@ -3,3 +3,6 @@ node_modules
 
 # SAM CLI local settings file with secrets
 samconfig.toml
+
+# Ignore script test
+curl-test
