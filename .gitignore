@@ -1,2 +1,5 @@
 node_modules
 /.aws-sam
+
+# SAM CLI local settings file with secrets
+samconfig.toml

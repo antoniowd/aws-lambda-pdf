@@ -2,6 +2,8 @@ import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
+const BUCKET_NAME = process.env.BUCKET_NAME;
+
 export const handler = async (event, context) => {
   const browser = await puppeteer.launch({
     args: chromium.args,
@@ -18,8 +20,8 @@ export const handler = async (event, context) => {
 
   const client = new S3Client({ region: "us-east-1" });
   const command = new PutObjectCommand({
-    Bucket: "notacerta-pdf-storage",
-    Key: "my-pdf.pdf",
+    Bucket: BUCKET_NAME,
+    Key: "test.pdf",
     Body: buffer,
   });
 

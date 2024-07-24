@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Chromium's Serverless Application
 
+Parameters:
+  AppBucketName:
+    Type: String
+    Description: "REQUIRED: Unique S3 bucket name to use for the app."
+
 Resources:
   ApiGateway:
     Type: AWS::Serverless::Api
@@ -46,11 +51,14 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /pdf/html
             Method: GET
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref AppBucketName
 
   AppBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: "notacerta-pdf-storage"
+      BucketName: !Ref AppBucketName
       LifecycleConfiguration:
         Rules:
           - Id: DeleteAfter24Hours
@@ -81,8 +89,8 @@ Resources:
                   - s3:PutObjectAcl
                   - s3:GetObjectAcl
                 Resource:
-                  - !Sub "arn:aws:s3:::notacerta-pdf-storage/*"
-                  - !Sub "arn:aws:s3:::notacerta-pdf-storage"
+                  - !Sub "arn:aws:s3:::${AppBucketName}/*"
+                  - !Sub "arn:aws:s3:::${AppBucketName}"
 
 Outputs:
   ApiUrl:
