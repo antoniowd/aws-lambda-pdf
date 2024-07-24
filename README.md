@@ -57,7 +57,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \
 ```
 Replace YOUR_API_KEY with your API key and add in the body of the request the HTML content you want to convert to PDF.
 ## Parameters for the endpoint
-- **html** (required): A string containing the HTML content to be converted into the PDF. For example, <h1>Hello World!</h1> will create a PDF with a heading that says "Hello World!".
+- **html** (required): A string containing the HTML content to be converted into the PDF. For example, `<h1>Hello World!</h1>` will create a PDF with a heading that says "Hello World!".
 - **fileName** (optional, default: sample-document.pdf): The desired name of the generated PDF file. In the example, the PDF will be saved as myDoc.pdf.
 - **inlinePdf** (optional, defaul: false): A boolean value indicating how the PDF should be displayed. If set to true, the PDF will be displayed inline (embedded within the page). If set to false or omitted, the PDF will prompt for download or open in a new tab depending on the browser's default behavior.
 
