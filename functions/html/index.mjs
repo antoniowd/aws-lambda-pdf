@@ -1,6 +1,11 @@
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const REGION = process.env.REGION;
@@ -24,13 +29,23 @@ export const handler = async (event, _) => {
   const buffer = await page.pdf({ format: "A4" });
 
   const client = new S3Client({ region: REGION });
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: buffer,
-  });
 
-  await client.send(command);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+    }),
+  );
+
+  const url = await getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    }),
+    { expiresIn: 3600 }, // 1 hour
+  );
 
   await page.close();
 
@@ -43,7 +58,7 @@ export const handler = async (event, _) => {
     },
     body: JSON.stringify({
       name: key,
-      url: "https://www.example.com",
+      url,
     }),
   };
 };

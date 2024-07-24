@@ -40,6 +40,12 @@ sam build
 sam deploy --guided
 ```
 Follow the prompts during the guided deployment to set parameters and review the changes before deploying.
+***Get the api key***
+The deployment will generate an API Key. You need to get the it from the AWS Console or use the following command:
+```sh
+aws apigateway get-api-keys --name-query MyApiKey --include-values --region YOUR_REGION
+```
+
 ### 4. Test the Endpoint
 After deployment, you will get the API endpoint URL. Use the endpoint to generate a PDF from HTML.
 
