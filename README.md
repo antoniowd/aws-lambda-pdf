@@ -5,13 +5,10 @@ The aws-lambda-pdf project is designed to generate PDFs from HTML content using 
 ## Architecture
 The project consists of the following main components:
 
-**API Gateway**: Provides an HTTP endpoint to trigger the Lambda function.
-
-**Lambda Function**: Generates PDF from HTML and stores it in an S3 bucket.
-
-**S3 Bucket**: Stores the generated PDF files with a lifecycle policy to delete files after 24 hours.
-
-**IAM Role**: Provides necessary permissions for the Lambda function to interact with S3.
+- **API Gateway**: Provides an HTTP endpoint to trigger the Lambda function.
+- **Lambda Function**: Generates PDF from HTML and stores it in an S3 bucket.
+- **S3 Bucket**: Stores the generated PDF files with a lifecycle policy to delete files after 24 hours.
+- **IAM Role**: Provides necessary permissions for the Lambda function to interact with S3.
 
 ## Prerequisites
 * AWS CLI
@@ -55,7 +52,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \
 Replace YOUR_API_KEY with your API key and add in the body of the request the HTML content you want to convert to PDF.
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE.txt) file for details.
 
 ## Contributing
 Contributions are welcome! Please open an issue or submit a pull request for any changes.
