@@ -13,6 +13,38 @@ Resources:
     Properties:
       Name: ChromiumPDFApi
       StageName: prod
+      Auth:
+        ApiKeyRequired: true
+
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Enabled: true
+      Name: MyApiKey
+      StageKeys:
+        - RestApiId: !Ref ApiGateway
+          StageName: prod
+
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: MyUsagePlan
+      ApiStages:
+        - ApiId: !Ref ApiGateway
+          Stage: prod
+      Throttle:
+        BurstLimit: 100
+        RateLimit: 50
+      Quota:
+        Limit: 10000
+        Period: MONTH
+
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlan
 
   ChromiumLayer:
     Type: AWS::Serverless::LayerVersion
@@ -97,3 +129,6 @@ Outputs:
   ApiUrl:
     Description: "URL for API endpoint"
     Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/"
+  Region:
+    Description: "AWS Region"
+    Value: !Ref "AWS::Region"
