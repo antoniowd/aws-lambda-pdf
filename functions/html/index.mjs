@@ -23,7 +23,7 @@ export const handler = async (event, _) => {
   const { html, fileName, inlinePdf } = JSON.parse(event.body);
 
   if (!html) {
-    return sendResponse(400, { message: "html is required" });
+    return sendResponse(400, { success: false, error: "html is required" });
   }
 
   const name = fileName ?? "sample-document.pdf";
@@ -69,8 +69,12 @@ export const handler = async (event, _) => {
 
     await browser.close();
 
-    return sendResponse(200, { fileName: name, url });
+    return sendResponse(200, {
+      success: true,
+      fileName: name,
+      url,
+    });
   } catch (err) {
-    return sendResponse(500, { message: err.message });
+    return sendResponse(500, { success: false, error: err.message });
   }
 };
