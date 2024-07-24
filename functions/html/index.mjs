@@ -10,55 +10,62 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const REGION = process.env.REGION;
 
+const sendResponse = (statusCode, body) => ({
+  statusCode,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(body),
+});
+
 export const handler = async (event, _) => {
   const { html, name } = JSON.parse(event.body);
 
+  if (!html) {
+    return sendResponse(400, { message: "html is required" });
+  }
+
   const key = `${name ?? "sample-document"}.pdf`;
 
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
-  });
+  try {
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
 
-  const page = await browser.newPage();
+    const page = await browser.newPage();
 
-  await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "networkidle0" });
 
-  const buffer = await page.pdf({ format: "A4" });
+    const buffer = await page.pdf({ format: "A4" });
 
-  const client = new S3Client({ region: REGION });
+    const client = new S3Client({ region: REGION });
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: buffer,
-    }),
-  );
+    await client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: buffer,
+      }),
+    );
 
-  const url = await getSignedUrl(
-    client,
-    new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-    }),
-    { expiresIn: 3600 }, // 1 hour
-  );
+    const url = await getSignedUrl(
+      client,
+      new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      }),
+      { expiresIn: 3600 }, // 1 hour
+    );
 
-  await page.close();
+    await page.close();
 
-  await browser.close();
+    await browser.close();
 
-  return {
-    statusCode: 200,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: key,
-      url,
-    }),
-  };
+    return sendResponse(200, { name, url });
+  } catch (err) {
+    return sendResponse(500, { message: err.message });
+  }
 };
