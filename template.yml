@@ -54,6 +54,7 @@ Resources:
       Environment:
         Variables:
           BUCKET_NAME: !Ref AppBucketName
+          REGION: !Ref "AWS::Region"
 
   AppBucket:
     Type: AWS::S3::Bucket

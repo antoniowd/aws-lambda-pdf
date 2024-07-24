@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "sam build",
-    "deploy": "sam deploy --guided"
+    "deploy": "sam deploy --guided",
+    "deploy:all": "sam build && sam deploy"
   },
   "keywords": [],
   "author": "",

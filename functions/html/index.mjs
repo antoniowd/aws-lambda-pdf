@@ -3,6 +3,7 @@ import chromium from "@sparticuz/chromium";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const BUCKET_NAME = process.env.BUCKET_NAME;
+const REGION = process.env.REGION;
 
 export const handler = async (event, context) => {
   const browser = await puppeteer.launch({
@@ -18,7 +19,7 @@ export const handler = async (event, context) => {
 
   const buffer = await page.pdf({ format: "A4" });
 
-  const client = new S3Client({ region: "us-east-1" });
+  const client = new S3Client({ region: REGION });
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: "test.pdf",
