@@ -11,10 +11,10 @@ The project consists of the following main components:
 - **IAM Role**: Provides necessary permissions for the Lambda function to interact with S3.
 
 ## Prerequisites
-* AWS CLI
-* AWS SAM CLI
-* Node.js
-* npm
+- AWS CLI
+- AWS SAM CLI
+- Node.js
+- npm
 
 ## Setup and Deployment
 ### 1. Clone the repository
@@ -40,7 +40,8 @@ sam build
 sam deploy --guided
 ```
 Follow the prompts during the guided deployment to set parameters and review the changes before deploying.
-***Get the api key***
+
+**Get the api key**
 The deployment will generate an API Key. You need to get the it from the AWS Console or use the following command:
 ```sh
 aws apigateway get-api-keys --name-query MyApiKey --include-values --region YOUR_REGION
