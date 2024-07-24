@@ -132,3 +132,21 @@ Outputs:
   Region:
     Description: "AWS Region"
     Value: !Ref "AWS::Region"
+  BucketName:
+    Description: "Name of the S3 bucket"
+    Value: !Ref AppBucketName
+  BucketArn:
+    Description: "ARN of the S3 bucket"
+    Value: !GetAtt AppBucket.Arn
+  LambdaFunctionName:
+    Description: "Name of the Lambda function"
+    Value: !Ref GeneratePdfFromHtml
+  LambdaFunctionArn:
+    Description: "ARN of the Lambda function"
+    Value: !GetAtt GeneratePdfFromHtml.Arn
+  RoleName:
+    Description: "Name of the IAM Role"
+    Value: !Ref LambdaExecutionRole
+  RoleArn:
+    Description: "ARN of the IAM Role"
+    Value: !GetAtt LambdaExecutionRole.Arn
