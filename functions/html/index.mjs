@@ -19,6 +19,8 @@ const sendResponse = (statusCode, body) => ({
   body: JSON.stringify(body),
 });
 
+const client = new S3Client({ region: REGION });
+
 export const handler = async (event, _) => {
   const { html, fileName, inlinePdf } = JSON.parse(event.body);
 
@@ -42,8 +44,6 @@ export const handler = async (event, _) => {
     await page.setContent(html, { waitUntil: "networkidle0" });
 
     const buffer = await page.pdf({ format: "A4" });
-
-    const client = new S3Client({ region: REGION });
 
     await client.send(
       new PutObjectCommand({
