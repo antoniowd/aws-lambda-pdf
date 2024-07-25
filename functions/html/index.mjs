@@ -22,7 +22,7 @@ const sendResponse = (statusCode, body) => ({
 const client = new S3Client({ region: REGION });
 
 export const handler = async (event, _) => {
-  const { html, fileName, inlinePdf } = JSON.parse(event.body);
+  const { html, fileName, inlinePdf, options } = JSON.parse(event.body);
 
   if (!html) {
     return sendResponse(400, { success: false, error: "html is required" });
@@ -43,7 +43,10 @@ export const handler = async (event, _) => {
 
     await page.setContent(html, { waitUntil: "networkidle0" });
 
-    const buffer = await page.pdf({ format: "A4" });
+    const buffer = await page.pdf({
+      format: options?.format ?? "A4",
+      printBackground: options?.printBackground ?? true,
+    });
 
     await client.send(
       new PutObjectCommand({
