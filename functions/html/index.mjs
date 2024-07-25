@@ -46,6 +46,22 @@ export const handler = async (event, _) => {
     const buffer = await page.pdf({
       format: options?.format ?? "A4",
       printBackground: options?.printBackground ?? true,
+      displayHeaderFooter: options?.displayHeaderFooter ?? false,
+      margin: {
+        top: options?.marginTop ?? "20px",
+        right: options?.marginRight ?? "20px",
+        bottom: options?.marginBottom ?? "20px",
+        left: options?.marginLeft ?? "20px",
+      },
+      headerTemplate: options?.headerTemplate ?? "",
+      footerTemplate: options?.footerTemplate ?? "",
+      landscape: options?.landscape ?? false,
+      scale: options?.scale ?? 1,
+      pageRanges: options?.pageRanges ?? "",
+      width: options?.width ?? "",
+      height: options?.height ?? "",
+      preferCSSPageSize: options?.preferCSSPageSize ?? false,
+      omitBackground: options?.omitBackground ?? false,
     });
 
     await client.send(
