@@ -30,9 +30,10 @@ export const handler = async (event, _) => {
 
   const name = fileName ?? "sample-document.pdf";
   const key = `${fileName}`;
+  let browser;
 
   try {
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
@@ -87,13 +88,15 @@ export const handler = async (event, _) => {
     await page.close();
 
     await browser.close();
-
     return sendResponse(200, {
       success: true,
       fileName: name,
       url,
     });
   } catch (err) {
+    if (browser) {
+      await browser.close();
+    }
     return sendResponse(500, { success: false, error: err.message });
   }
 };
