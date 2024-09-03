@@ -73,8 +73,8 @@ Resources:
       Layers:
         - !Ref ChromiumLayer
       # Adjust as necessary
-      Timeout: 30
-      MemorySize: 1024
+      Timeout: 60
+      MemorySize: 1600
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
