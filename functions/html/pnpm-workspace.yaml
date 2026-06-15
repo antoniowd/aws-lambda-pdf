@@ -1,0 +1,10 @@
+# Scoped pnpm settings for the Lambda source package. This file is kept here
+# intentionally because installs are run with `pnpm --dir functions/html install`.
+minimumReleaseAgeExclude:
+  - '@aws-sdk/client-dynamodb@3.1068.0'
+  - '@aws-sdk/client-s3@3.1068.0'
+  - '@aws-sdk/client-sqs@3.1068.0'
+  - '@aws-sdk/lib-dynamodb@3.1068.0'
+  - '@aws-sdk/s3-request-presigner@3.1068.0'
+allowBuilds:
+  esbuild: true

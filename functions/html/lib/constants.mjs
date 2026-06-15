@@ -1,0 +1,31 @@
+export const PDF_CONTENT_TYPE = "application/pdf";
+export const JSON_CONTENT_TYPE = "application/json";
+export const DEFAULT_FILE_NAME = "sample-document.pdf";
+export const MAX_HTML_BYTES = 5 * 1024 * 1024;
+export const MAX_DATA_URL_BYTES = 2 * 1024 * 1024;
+export const JOB_RETENTION_SECONDS = 24 * 60 * 60;
+export const SIGNED_URL_SECONDS = 60 * 60;
+export const DEFAULT_ASSET_TIMEOUT_MS = 60_000;
+export const MAX_ASSET_TIMEOUT_MS = 120_000;
+export const RENDER_TIME_RESERVE_MS = 45_000;
+export const MAX_BROWSER_JOBS = 20;
+
+export const JOB_STATUS = Object.freeze({
+  QUEUED: "queued",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed",
+});
+
+export const ERROR_CODES = Object.freeze({
+  INVALID_JSON: "INVALID_JSON",
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+  IDEMPOTENCY_CONFLICT: "IDEMPOTENCY_CONFLICT",
+  JOB_NOT_FOUND: "JOB_NOT_FOUND",
+  JOB_EXPIRED: "JOB_EXPIRED",
+  ASSET_LOAD_FAILED: "ASSET_LOAD_FAILED",
+  INPUT_READ_FAILED: "INPUT_READ_FAILED",
+  RENDER_FAILED: "RENDER_FAILED",
+  MAX_ATTEMPTS_EXCEEDED: "MAX_ATTEMPTS_EXCEEDED",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+});

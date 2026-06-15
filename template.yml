@@ -1,11 +1,21 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Chromium's Serverless Application
+Description: Asynchronous Chromium PDF generation with API Gateway, SQS, DynamoDB, and S3
 
 Parameters:
   AppBucketName:
     Type: String
-    Description: "REQUIRED: Unique S3 bucket name to use for the app."
+    Description: "REQUIRED: Unique S3 bucket name to use for PDF inputs and outputs."
+  WorkerMemorySize:
+    Type: Number
+    Default: 3072
+    AllowedValues: [ 2048, 3072, 4096 ]
+    Description: Memory allocated to the PDF worker for tuning benchmarks.
+  WorkerReservedConcurrency:
+    Type: Number
+    Default: 2
+    MinValue: 2
+    Description: Maximum number of image-heavy PDFs rendered concurrently.
 
 Resources:
   ApiGateway:
@@ -49,11 +59,10 @@ Resources:
   ChromiumLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      Description: Chromium with Node.js integration for AWS Lambda
+      Description: Chromium 149 for Node.js 24 Lambda functions
       ContentUri: layers/chromium
       CompatibleRuntimes:
-        - &nodejsRuntime nodejs18.x
-      # Chromium doesn't currently have ARM support; see https://github.com/Sparticuz/chromium#can-i-use-arm-or-graviton-instances
+        - &nodejsRuntime nodejs24.x
       CompatibleArchitectures:
         - &chromiumArch x86_64
       RetentionPolicy: Delete
@@ -61,21 +70,180 @@ Resources:
       BuildMethod: *nodejsRuntime
       BuildArchitecture: *chromiumArch
 
+  AppBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref AppBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfter24Hours
+            Status: Enabled
+            ExpirationInDays: 1
+
+  PdfJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: jobId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: jobId
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  PdfDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 1800
+      SqsManagedSseEnabled: true
+
+  PdfQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      ReceiveMessageWaitTimeSeconds: 20
+      VisibilityTimeout: 1800
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PdfDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SynchronousFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: &lambdaTrustPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SynchronousPdfStorage
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ s3:PutObject, s3:GetObject ]
+                Resource: !Sub "arn:aws:s3:::${AppBucketName}/*"
+
+  SubmitFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: *lambdaTrustPolicy
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SubmitPdfJob
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ s3:PutObject, s3:DeleteObject ]
+                Resource: !Sub "arn:aws:s3:::${AppBucketName}/jobs/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:TransactWriteItems
+                Resource: !GetAtt PdfJobsTable.Arn
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt PdfQueue.Arn
+
+  StatusFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: *lambdaTrustPolicy
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadPdfJob
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:GetItem
+                Resource: !GetAtt PdfJobsTable.Arn
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${AppBucketName}/jobs/*"
+
+  WorkerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: *lambdaTrustPolicy
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ProcessPdfJob
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ s3:GetObject, s3:PutObject ]
+                Resource: !Sub "arn:aws:s3:::${AppBucketName}/jobs/*"
+              - Effect: Allow
+                Action: [ dynamodb:GetItem, dynamodb:UpdateItem ]
+                Resource: !GetAtt PdfJobsTable.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource: !GetAtt PdfQueue.Arn
+
+  DlqFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: *lambdaTrustPolicy
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: FinalizeFailedPdfJob
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:UpdateItem
+                Resource: !GetAtt PdfJobsTable.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt PdfDeadLetterQueue.Arn
+
   GeneratePdfFromHtml:
     Type: AWS::Serverless::Function
     Properties:
       Handler: index.handler
       CodeUri: functions/html
-      Description: Generate PDFs from HTML using Chromium
+      Description: Deprecated synchronous HTML-to-PDF endpoint
       Runtime: *nodejsRuntime
-      Architectures:
-        - *chromiumArch
-      Layers:
-        - !Ref ChromiumLayer
-      # Adjust as necessary
-      Timeout: 60
-      MemorySize: 1600
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Architectures: [ *chromiumArch ]
+      Layers: [ !Ref ChromiumLayer ]
+      Timeout: 28
+      MemorySize: 2048
+      Role: !GetAtt SynchronousFunctionRole.Arn
       Events:
         Api:
           Type: Api
@@ -86,76 +254,269 @@ Resources:
       Environment:
         Variables:
           BUCKET_NAME: !Ref AppBucketName
-          REGION: !Ref "AWS::Region"
+          REGION: !Ref AWS::Region
+    Metadata:
+      BuildMethod: nodejs24.x
+
+  SubmitPdfJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: submit.handler
+      CodeUri: functions/html
+      Description: Validate and queue asynchronous PDF jobs
+      Runtime: *nodejsRuntime
+      Architectures: [ *chromiumArch ]
+      Timeout: 10
+      MemorySize: 512
+      Role: !GetAtt SubmitFunctionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /pdf/jobs
+            Method: POST
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref AppBucketName
+          JOBS_TABLE: !Ref PdfJobsTable
+          QUEUE_URL: !Ref PdfQueue
+          REGION: !Ref AWS::Region
+    Metadata:
+      BuildMethod: nodejs24.x
+
+  GetPdfJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: status.handler
+      CodeUri: functions/html
+      Description: Return asynchronous PDF job status and download URL
+      Runtime: *nodejsRuntime
+      Architectures: [ *chromiumArch ]
+      Timeout: 10
+      MemorySize: 512
+      Role: !GetAtt StatusFunctionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /pdf/jobs/{jobId}
+            Method: GET
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref AppBucketName
+          JOBS_TABLE: !Ref PdfJobsTable
+          REGION: !Ref AWS::Region
+    Metadata:
+      BuildMethod: nodejs24.x
+
+  PdfWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: worker.handler
+      CodeUri: functions/html
+      Description: Render queued PDFs with Chromium
+      Runtime: *nodejsRuntime
+      Architectures: [ *chromiumArch ]
+      Layers: [ !Ref ChromiumLayer ]
+      Timeout: 300
+      MemorySize: !Ref WorkerMemorySize
+      EphemeralStorage:
+        Size: 1024
+      ReservedConcurrentExecutions: !Ref WorkerReservedConcurrency
+      Role: !GetAtt WorkerFunctionRole.Arn
+      Events:
+        Queue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PdfQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes: [ ReportBatchItemFailures ]
+            ScalingConfig:
+              MaximumConcurrency: !Ref WorkerReservedConcurrency
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref AppBucketName
+          JOBS_TABLE: !Ref PdfJobsTable
+          QUEUE_URL: !Ref PdfQueue
+          REGION: !Ref AWS::Region
+    Metadata:
+      BuildMethod: nodejs24.x
+
+  PdfDlqHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: dlq.handler
+      CodeUri: functions/html
+      Description: Mark exhausted PDF jobs as permanently failed
+      Runtime: *nodejsRuntime
+      Architectures: [ *chromiumArch ]
+      Timeout: 10
+      MemorySize: 512
+      Role: !GetAtt DlqFunctionRole.Arn
+      Events:
+        Queue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PdfDeadLetterQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes: [ ReportBatchItemFailures ]
+      Environment:
+        Variables:
+          JOBS_TABLE: !Ref PdfJobsTable
+          REGION: !Ref AWS::Region
+    Metadata:
+      BuildMethod: nodejs24.x
 
   GeneratePdfFromHtmlLogGroup:
     Type: AWS::Logs::LogGroup
-    DependsOn: [ GeneratePdfFromHtml ]
     Properties:
       LogGroupName: !Sub /aws/lambda/${GeneratePdfFromHtml}
       RetentionInDays: 7
 
-  AppBucket:
-    Type: AWS::S3::Bucket
+  SubmitPdfJobLogGroup:
+    Type: AWS::Logs::LogGroup
     Properties:
-      BucketName: !Ref AppBucketName
-      LifecycleConfiguration:
-        Rules:
-          - Id: DeleteAfter24Hours
-            Status: Enabled
-            ExpirationInDays: 1
+      LogGroupName: !Sub /aws/lambda/${SubmitPdfJob}
+      RetentionInDays: 7
 
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
+  GetPdfJobLogGroup:
+    Type: AWS::Logs::LogGroup
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: S3AccessPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                  - s3:PutObjectAcl
-                  - s3:GetObjectAcl
-                Resource:
-                  - !Sub "arn:aws:s3:::${AppBucketName}/*"
-                  - !Sub "arn:aws:s3:::${AppBucketName}"
+      LogGroupName: !Sub /aws/lambda/${GetPdfJob}
+      RetentionInDays: 7
+
+  PdfWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PdfWorker}
+      RetentionInDays: 7
+
+  PdfDlqHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PdfDlqHandler}
+      RetentionInDays: 7
+
+  QueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Oldest queued PDF job has waited more than five minutes
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PdfQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 300
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  WorkerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: PDF worker returned an invocation error
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PdfWorker
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  WorkerAttemptFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: A PDF worker attempt failed and was returned to SQS
+      Namespace: ChromiumPdf
+      MetricName: JobsRetried
+      Dimensions:
+        - Name: Service
+          Value: PdfWorker
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  WorkerThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: PDF worker was throttled
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PdfWorker
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  WorkerDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: PDF worker p95 duration exceeded four minutes
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PdfWorker
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 240000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  PermanentFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: A PDF job exhausted all retry attempts
+      Namespace: ChromiumPdf
+      MetricName: PermanentFailures
+      Dimensions:
+        - Name: Service
+          Value: PdfDlq
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
 
 Outputs:
   ApiUrl:
-    Description: "URL for API endpoint"
-    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/"
-  Region:
-    Description: "AWS Region"
-    Value: !Ref "AWS::Region"
+    Description: Base URL for the API
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  SubmitJobUrl:
+    Description: Asynchronous PDF submission endpoint
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/pdf/jobs"
   BucketName:
-    Description: "Name of the S3 bucket"
+    Description: PDF input and output bucket
     Value: !Ref AppBucketName
-  BucketArn:
-    Description: "ARN of the S3 bucket"
-    Value: !GetAtt AppBucket.Arn
-  LambdaFunctionName:
-    Description: "Name of the Lambda function"
+  JobsTableName:
+    Description: DynamoDB PDF jobs table
+    Value: !Ref PdfJobsTable
+  QueueUrl:
+    Description: SQS PDF work queue URL
+    Value: !Ref PdfQueue
+  DeadLetterQueueUrl:
+    Description: SQS dead-letter queue URL
+    Value: !Ref PdfDeadLetterQueue
+  SynchronousFunctionName:
+    Description: Deprecated synchronous Lambda function
     Value: !Ref GeneratePdfFromHtml
-  LambdaFunctionArn:
-    Description: "ARN of the Lambda function"
-    Value: !GetAtt GeneratePdfFromHtml.Arn
-  RoleName:
-    Description: "Name of the IAM Role"
-    Value: !Ref LambdaExecutionRole
-  RoleArn:
-    Description: "ARN of the IAM Role"
-    Value: !GetAtt LambdaExecutionRole.Arn
+  WorkerFunctionName:
+    Description: Asynchronous PDF worker Lambda function
+    Value: !Ref PdfWorker

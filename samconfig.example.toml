@@ -1,0 +1,10 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "chromium-pdf"
+resolve_s3 = true
+region = "YOUR_REGION"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "AppBucketName=YOUR_UNIQUE_BUCKET_NAME WorkerMemorySize=3072 WorkerReservedConcurrency=2"
+confirm_changeset = true
+fail_on_empty_changeset = false

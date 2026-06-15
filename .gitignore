@@ -1,7 +1,8 @@
 node_modules
 /.aws-sam
+/.pnpm-store
 
-# SAM CLI local settings file with secrets
+# SAM CLI local settings may contain stack-specific parameter values.
 samconfig.toml
 
 # Ignore script test

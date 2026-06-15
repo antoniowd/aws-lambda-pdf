@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "sam build",
-    "deploy": "sam deploy --guided",
-    "deploy:all": "sam build && sam deploy"
+    "test": "pnpm --dir functions/html test",
+    "build": "npm_config_cache=/tmp/aws-lambda-pdf-npm-cache sam build",
+    "benchmark": "node scripts/benchmark.mjs",
+    "deploy": "sam deploy",
+    "deploy:all": "pnpm build && pnpm run deploy"
   },
   "keywords": [],
   "author": "",

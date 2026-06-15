@@ -9,6 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@sparticuz/chromium": "126"
+    "@sparticuz/chromium": "149.0.0"
   }
 }
